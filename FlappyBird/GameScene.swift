@@ -8,14 +8,28 @@
 
 import SpriteKit
 
-class GameScene: SKScene {      //クラス＝画面、という認識で良い？
+class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面、という認識で良い？
     
     var scrollNode:SKNode!
     var wallNode:SKNode!
-    var bird:SKNode!
+    var bird:SKSpriteNode!      //SKNodeとSKSpriteNodeの違いは？
+    
+    //衝突判定カテゴリー
+    let birdCategory: UInt32 = 1 << 0
+    let groundCategory: UInt32 = 1 << 1
+    let wallCategory: UInt32 = 1 << 2
+    let scoreCategory: UInt32 = 1 << 3
+    
+    //スコア
+    var score = 0
     
     //SKView上にシーンが表示された時に呼ばれるメソッド
     override func didMove(to view: SKView) {
+        
+        //重力を設定
+        physicsWorld.gravity = CGVector(dx: 0.0, dy: -4.0)
+        physicsWorld.contactDelegate = self
+        
         //背景色を設定
         backgroundColor = UIColor(red:0.15, green: 0.75, blue: 0.90, alpha: 1)
         
@@ -65,6 +79,15 @@ class GameScene: SKScene {      //クラス＝画面、という認識で良い�
             
             //スプライトにアクションを設定する
             sprite.run(repeatScrollGround)
+            
+            //スプライトに物理演算を設置する
+            sprite.physicsBody = SKPhysicsBody(rectangleOf: groundTexture.size())
+            
+            //衝突のカテゴリー設定
+            sprite.physicsBody?.categoryBitMask = groundCategory
+            
+            //衝突の時に動かないように設定する
+            sprite.physicsBody?.isDynamic = false
             
             //スプライトを追加する
             scrollNode.addChild(sprite)
@@ -150,12 +173,38 @@ class GameScene: SKScene {      //クラス＝画面、という認識で良い�
             //下の壁を作成
             let under = SKSpriteNode(texture: wallTexture)
             under.position = CGPoint(x: 0.0, y: under_wall_y)
+            
+            //スプライトに物理演算を設定する      この位置にしなければいけないのはなんで？
+            under.physicsBody = SKPhysicsBody(rectangleOf: wallTexture.size())
+            under.physicsBody?.categoryBitMask = self.wallCategory
+            
+            //衝突の時に動かないように設定する
+            under.physicsBody?.isDynamic = false
+            
             wall.addChild(under)
             
             //上の壁を作成
             let upper = SKSpriteNode(texture: wallTexture)
             upper.position = CGPoint(x: 0.0, y: under_wall_y + wallTexture.size().height + slit_length)
+            
+            //スプライトに物理演算を設定する      この位置にしなければいけないのはなんで？
+            upper.physicsBody = SKPhysicsBody(rectangleOf: wallTexture.size())
+            upper.physicsBody?.categoryBitMask = self.wallCategory
+            
+            //衝突の時に動かないように設定する
+            upper.physicsBody?.isDynamic = false
+
             wall.addChild(upper)
+            
+            //スコアアップ用のノード
+            let scoreNode = SKNode()
+            scoreNode.position = CGPoint(x: upper.size.width + self.bird.size.width / 2, y: self.frame.height / 2)      //どこの位置を指している？
+            scoreNode.physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: upper.size.width, height: self.frame.size.height))
+            scoreNode.physicsBody?.isDynamic = false
+            scoreNode.physicsBody?.categoryBitMask = self.scoreCategory
+            scoreNode.physicsBody?.contactTestBitMask = self.birdCategory
+            
+            wall.addChild(scoreNode)
             
             wall.run(wallAnimation)
             
@@ -187,12 +236,32 @@ class GameScene: SKScene {      //クラス＝画面、という認識で良い�
         bird = SKSpriteNode(texture: birdTextureA)
         bird.position = CGPoint(x: self.frame.size.width * 0.2, y: self.frame.size.height * 0.7)
         
+        //物理演算を設定
+        bird.physicsBody = SKPhysicsBody(circleOfRadius: bird.size.height / 2.0)
+        
+        //衝突した時に回転させないようにする
+        bird.physicsBody?.allowsRotation = false
+        
+        //衝突のカテゴリー設定
+        bird.physicsBody?.categoryBitMask = birdCategory
+        bird.physicsBody?.collisionBitMask = groundCategory | wallCategory
+        bird.physicsBody?.contactTestBitMask = groundCategory | wallCategory
+        
         //アニメーション設定
         bird.run(flap)
         
         //スプライトを追加
         addChild(bird)
         
+    }
+    
+    //画面をタップした時に呼ばれる
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        //鳥の速度を０にする
+        bird.physicsBody?.velocity = CGVector.zero
+        
+        //鳥に縦方向の力を与える
+        bird.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 15))
     }
 
 
