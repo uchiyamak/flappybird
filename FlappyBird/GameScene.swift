@@ -12,7 +12,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     
     var scrollNode:SKNode!
     var wallNode:SKNode!
-    var bird:SKSpriteNode!      //SKNodeとSKSpriteNodeの違いは？
+    var bird:SKSpriteNode!      //SKNodeとSKSpriteNodeの違いは？動きがあるかないか？かな？
     
     //衝突判定カテゴリー
     let birdCategory: UInt32 = 1 << 0
@@ -22,6 +22,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     
     //スコア
     var score = 0
+    var scoreLabelNode:SKLabelNode!
+    var bestScoreLabelNode:SKLabelNode!
+    let userDefaults:UserDefaults = UserDefaults.standard   //スコア保存用？
     
     //SKView上にシーンが表示された時に呼ばれるメソッド
     override func didMove(to view: SKView) {
@@ -46,6 +49,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         setupCloud()
         setupWall()
         setupBird()
+        
+        //ラベル表示用
+        setupScoreLabel()
         
     }
     func setupGround() {
@@ -73,7 +79,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
             
             //スプライトを表示する位置を指定する
             sprite.position = CGPoint(
-                x: groundTexture.size().width * (CGFloat(i) + 0.5),     //CGFloatってなに？
+                x: groundTexture.size().width * (CGFloat(i) + 0.5),     //CGFloatってなに？　型
                 y: groundTexture.size().height * 0.5
             )
             
@@ -244,8 +250,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         
         //衝突のカテゴリー設定
         bird.physicsBody?.categoryBitMask = birdCategory
-        bird.physicsBody?.collisionBitMask = groundCategory | wallCategory
-        bird.physicsBody?.contactTestBitMask = groundCategory | wallCategory
+        bird.physicsBody?.collisionBitMask = groundCategory | wallCategory      //跳ね返る動作の設定
+        bird.physicsBody?.contactTestBitMask = groundCategory | wallCategory    //これは？
         
         //アニメーション設定
         bird.run(flap)
@@ -257,11 +263,86 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     
     //画面をタップした時に呼ばれる
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        //鳥の速度を０にする
-        bird.physicsBody?.velocity = CGVector.zero
+        if scrollNode.speed > 0 {
+            //鳥の速度を０にする
+            bird.physicsBody?.velocity = CGVector.zero
+            
+            //鳥に縦方向の力を与える
+            bird.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 15))
+        } else if bird.speed == 0 {
+            restart()
+        }
+    }
+    
+    // SKPhisicsContactDelegateのメソッド　衝突した時に呼ばれる
+    func didBegin(_ contact: SKPhysicsContact) {            //衝突した時に、はSKPhysicsContactで指定してる？
+        //ゲームオーバーの時は何もしない
+        if scrollNode.speed <= 0 {
+            return
+        }
         
-        //鳥に縦方向の力を与える
-        bird.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 15))
+        if (contact.bodyA.categoryBitMask & scoreCategory) == scoreCategory || (contact.bodyB.categoryBitMask & scoreCategory) == scoreCategory {
+            //スコアようの物体と衝突した     bodyA, bodyBって何？
+            print("ScoreUp")
+            score += 1
+            
+            //ベストスコア更新か確認する
+            var bestScore = userDefaults.integer(forKey: "BEST")    //BESTという名前でどっかに保存？KEYを指定する理由は？bestScoreっていう変数名で保存すればいい気がするけど
+            if score > bestScore {
+                bestScore = score
+                userDefaults.set(bestScore, forKey: "BEST")
+                userDefaults.synchronize()      //すぐに保存するためらしい
+            }
+        } else {
+            //壁か地面と衝突
+            print("GameOver")
+            //スクロールを停止させる
+            scrollNode.speed = 0
+            
+            bird.physicsBody?.collisionBitMask = groundCategory     //?がついてる時とついてない時の違いは？
+            
+            let roll = SKAction.rotate(byAngle: CGFloat(Double.pi) * CGFloat(bird.position.y) * 0.01, duration:1)       //鳥をひっくり返す計算。中身を理解したい
+            bird.run(roll, completion:{
+                self.bird.speed = 0
+            })
+        }
+    }
+    
+    //リスタートの関数
+    func restart() {
+        score = 0
+        
+        bird.position = CGPoint(x: self.frame.size.width * 0.2, y: self.frame.size.height * 0.7)    //初期位置はsetupBirdと共通化した方がいいんじゃ？
+        bird.physicsBody?.velocity = CGVector.zero
+        bird.physicsBody?.collisionBitMask = groundCategory | wallCategory
+        bird.zPosition = 0.0
+        
+        wallNode.removeAllChildren()
+        
+        bird.speed = 1
+        scrollNode.speed = 1
+    }
+    
+    //スコア表示用
+    func setupScoreLabel() {
+        score = 0
+        scoreLabelNode = SKLabelNode()
+        scoreLabelNode.fontColor = UIColor.black
+        scoreLabelNode.position = CGPoint(x:10, y: self.frame.size.height - 60)
+        scoreLabelNode.zPosition = 100      //zだけ別だし？一緒に指定できないの？
+        scoreLabelNode.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.left
+        scoreLabelNode.text = "Score:\(score)"
+        self.addChild(scoreLabelNode)
+        
+        bestScoreLabelNode = SKLabelNode()
+        bestScoreLabelNode.fontColor = UIColor.black
+        bestScoreLabelNode.position = CGPoint(x: 10, y: self.frame.size.height - 90)
+        bestScoreLabelNode.zPosition = 100
+        bestScoreLabelNode.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.left
+        
+        let bestScore = userDefaults.integer(forKey: "BEST")    //ここでBESTを取り出してる？
+        bestScoreLabelNode.text = "BEST Score:\(bestScore)"
+        self.addChild(bestScoreLabelNode)
     }
 
 
