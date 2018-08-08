@@ -285,11 +285,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
             //スコアようの物体と衝突した     bodyA, bodyBって何？
             print("ScoreUp")
             score += 1
+            scoreLabelNode.text = "Score:\(score)"      //ここも記述統一した方が良くない？
             
             //ベストスコア更新か確認する
             var bestScore = userDefaults.integer(forKey: "BEST")    //BESTという名前でどっかに保存？KEYを指定する理由は？bestScoreっていう変数名で保存すればいい気がするけど
             if score > bestScore {
                 bestScore = score
+                bestScoreLabelNode.text = "Best Score:\(bestScore)"
                 userDefaults.set(bestScore, forKey: "BEST")
                 userDefaults.synchronize()      //すぐに保存するためらしい
             }
@@ -311,6 +313,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     //リスタートの関数
     func restart() {
         score = 0
+        scoreLabelNode.text = String("Score:\(score)")
         
         bird.position = CGPoint(x: self.frame.size.width * 0.2, y: self.frame.size.height * 0.7)    //初期位置はsetupBirdと共通化した方がいいんじゃ？
         bird.physicsBody?.velocity = CGVector.zero
