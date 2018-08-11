@@ -18,13 +18,16 @@ class ViewController: UIViewController {
         // SKView型に変換する
         let skView = self.view as! SKView
         
+        // ノードの壁を表示
+        skView.showsPhysics = true
+        
         // FPSを表示する　FPSは画面が１秒間に何回更新されているかを表示
         skView.showsFPS = true
         
-        // ノード数を表示する　ノードは画面処理の本数？
+        // ノード数を表示する　ノードは画面処理の本数？　viewと同じもの
         skView.showsNodeCount = true
         
-        // ビューと同じサイズでシーンを作成する       表示の順番はどこで定義されている？
+        // ビューと同じサイズでシーンを作成する      シーンは世界
         let scene = GameScene(size:skView.frame.size)
         
         //ビューにシーンを表示する

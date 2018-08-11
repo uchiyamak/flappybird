@@ -7,24 +7,34 @@
 //
 
 import SpriteKit
+import AVFoundation
 
 class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面、という認識で良い？
     
     var scrollNode:SKNode!
-    var wallNode:SKNode!
-    var bird:SKSpriteNode!      //SKNodeとSKSpriteNodeの違いは？動きがあるかないか？かな？
+    var wallNode:SKNode!        //viewみたいなもの　属性を持っていない
+    var bird:SKSpriteNode!      //SKNodeとSKSpriteNodeの違いは？動きがあるかないか？かな？　スプライトは画面を効率よく表示させる
+    var itemNode:SKNode!
+    var audioPlayer:AVAudioPlayer!  //音を入れるインスタンス
     
-    //衝突判定カテゴリー
+    //衝突判定カテゴリー             //そういえばこれってどこで使ったの？？
     let birdCategory: UInt32 = 1 << 0
     let groundCategory: UInt32 = 1 << 1
     let wallCategory: UInt32 = 1 << 2
     let scoreCategory: UInt32 = 1 << 3
-    
+    let pointCategory: UInt32 = 1 << 4
+
     //スコア
     var score = 0
     var scoreLabelNode:SKLabelNode!
     var bestScoreLabelNode:SKLabelNode!
-    let userDefaults:UserDefaults = UserDefaults.standard   //スコア保存用？
+    let userDefaults:UserDefaults = UserDefaults.standard   //スコア保存用？　別のUserDefaultsを作るとどうなる？
+    //let pointUserDefaults:UserDefaults = UserDefaults.standard   //ポイント保存用
+
+    //アイテムポイント
+    var point = 0
+    var pointLabelNode:SKLabelNode!
+    var bestPointLabelNode:SKLabelNode!
     
     //SKView上にシーンが表示された時に呼ばれるメソッド
     override func didMove(to view: SKView) {
@@ -44,23 +54,29 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         wallNode = SKNode()
         scrollNode.addChild(wallNode)
         
+        //アイテム用のノード
+        itemNode = SKNode()
+        scrollNode.addChild(itemNode)
+        
         //各種スプライトを生成する処理をメソッドに分割
         setupGround()
         setupCloud()
         setupWall()
         setupBird()
+        setupItem()
         
         //ラベル表示用
         setupScoreLabel()
         
     }
+    
     func setupGround() {
         //地面の画像を読み込む
         let groundTexture = SKTexture(imageNamed: "ground") //imageとimagenamedの違いは？
         groundTexture.filteringMode = .nearest      //多少画質が荒くても処理速度を高める設定。linearで画質優先
         
         //必要な枚数を計算
-        let needNumber = Int(self.frame.size.width / groundTexture.size().width) + 2  // sizeとsize()の違いは？
+        let needNumber = Int(self.frame.size.width / groundTexture.size().width) + 2  // sizeとsize()の違いは？　仕様の違い　メソッドなのか変数なのかの違い　変数の場合の方が多い
         
         //スクロールするアクションを作成
         //左方向に画像一枚分スクロールさせるアクション
@@ -137,6 +153,76 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         }
     }
     
+    //アイテムを表示する
+    func setupItem() {
+        let itemTexture = SKTexture(imageNamed: "item")
+        itemTexture.filteringMode = .linear
+        
+        //移動する距離を計算
+        let movingDistance = CGFloat(self.frame.size.width + (itemTexture.size().width * 2))    // x2しないと足りないのはなぜ？
+        
+        //画面外まで移動するアクションを作成
+        let moveItem = SKAction.moveBy(x: -movingDistance, y: 0, duration: 8.0)
+
+        //自身を取り除くアクションを作成
+        let removeItem = SKAction.removeFromParent()        //これは戻すんじゃなくて消すの？
+        
+        //2つのアニメーションを順に実行するアクションを作成     リピートじゃなくて順に実行？
+        let itemAnimation = SKAction.sequence([moveItem, removeItem])
+        
+        //itemを生成するアクションを作成
+        let createItemAnimation = SKAction.run({
+            
+            //itemを乗せるノードを作成
+            let item = SKNode()
+            item.position = CGPoint(x: self.frame.size.width + itemTexture.size().width, y: 0.0)
+            item.zPosition = 0
+            
+            //アイテムを表示させる高さの下限値
+            let under_item_lowest_y = UInt32(self.frame.height / 4)
+            //壁のy軸を上下ランダムにさせる時の最大値
+            let random_y_range = self.frame.height / 2
+            //ランダムな高さを生成
+            let random_y = arc4random_uniform( UInt32(random_y_range) )
+            // Y軸の下限にランダムな値を足して下の壁のY座標を決定
+            let under_item_y = CGFloat(under_item_lowest_y + random_y)
+            
+            //アイテムを作成
+            let showItem = SKSpriteNode(texture: itemTexture)
+            showItem.position = CGPoint(x: 0.0, y: under_item_y)
+            
+            //ここに物理演算を記述
+            //ポイントアップ用のノード
+            let pointNode = SKNode()
+            
+            //物理演算を設定
+            pointNode.physicsBody = SKPhysicsBody(circleOfRadius: showItem.size.height / 2.0)
+            pointNode.position = showItem.position      //birdは指定しなくていいのに、なぜこっちは指定しないといけないの？
+            //衝突した時に回転させないようにする
+            pointNode.physicsBody?.allowsRotation = false
+            pointNode.physicsBody?.isDynamic = false
+            pointNode.physicsBody?.categoryBitMask = self.pointCategory
+            pointNode.physicsBody?.contactTestBitMask = self.birdCategory
+
+            item.addChild(pointNode)
+            
+            item.addChild(showItem)
+            item.run(itemAnimation)
+            self.itemNode.addChild(item)
+            //print("testtesttest")
+
+        })
+        
+        //次の壁作成までの待ち時間のアクション作成
+        let waitAnimation = SKAction.wait(forDuration: 1)
+        
+        //壁を作成　→待ち時間　→壁を作成を無限に繰り返すアクションを作成
+        let repeatForeverAnimation = SKAction.repeatForever(SKAction.sequence([createItemAnimation, waitAnimation]))
+        
+        itemNode.run(repeatForeverAnimation)
+
+    }
+    
     //壁を追加する
     func setupWall() {
         //壁の画像を読み込む
@@ -156,7 +242,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         let wallAnimation = SKAction.sequence([moveWall, removeWall])
         
         //壁を生成するアクションを作成
-        let createWallAnimation = SKAction.run({    //定数の中に定数を記述・・・？
+        let createWallAnimation = SKAction.run({    //定数の中に定数を記述・・・？　これは変数。関数を値として持っている。
             //壁関連のノードを載せるのーどを作成
             let wall = SKNode()
             wall.position = CGPoint(x: self.frame.size.width + wallTexture.size().width / 2, y: 0.0)
@@ -174,10 +260,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
             let under_wall_y = CGFloat(under_wall_lowest_y + random_y)
             
             //キャラが通り抜ける隙間の長さ
-            let slit_length = self.frame.size.height / 6
+            let slit_length = self.frame.size.height / 4
             
             //下の壁を作成
-            let under = SKSpriteNode(texture: wallTexture)
+            let under = SKSpriteNode(texture: wallTexture)  //ここで画像を持ったスプライトノードを作っている
             under.position = CGPoint(x: 0.0, y: under_wall_y)
             
             //スプライトに物理演算を設定する      この位置にしなければいけないのはなんで？
@@ -249,9 +335,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         bird.physicsBody?.allowsRotation = false
         
         //衝突のカテゴリー設定
-        bird.physicsBody?.categoryBitMask = birdCategory
+        bird.physicsBody?.categoryBitMask = birdCategory        //バードカテゴリーだけは位置指定しなくても重なってる？＊＊＊
         bird.physicsBody?.collisionBitMask = groundCategory | wallCategory      //跳ね返る動作の設定
-        bird.physicsBody?.contactTestBitMask = groundCategory | wallCategory    //これは？
+        bird.physicsBody?.contactTestBitMask = groundCategory | wallCategory | pointCategory    //これは？　didbeginを呼ぶ
         
         //アニメーション設定
         bird.run(flap)
@@ -281,8 +367,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
             return
         }
         
+        print("score:\(scoreCategory)")
+        print("point:\(pointCategory)")
+        print("contact:\(contact.bodyA.categoryBitMask & scoreCategory)")
+        
         if (contact.bodyA.categoryBitMask & scoreCategory) == scoreCategory || (contact.bodyB.categoryBitMask & scoreCategory) == scoreCategory {
-            //スコアようの物体と衝突した     bodyA, bodyBって何？
+            //スコアようの物体と衝突した     bodyA, bodyBって何？    単純に、 == じゃダメなの？＊＊＊
             print("ScoreUp")
             score += 1
             scoreLabelNode.text = "Score:\(score)"      //ここも記述統一した方が良くない？
@@ -295,7 +385,29 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
                 userDefaults.set(bestScore, forKey: "BEST")
                 userDefaults.synchronize()      //すぐに保存するためらしい
             }
-        } else {
+        } else if (contact.bodyA.categoryBitMask & pointCategory) == pointCategory || (contact.bodyB.categoryBitMask & pointCategory) == pointCategory {
+            
+            //効果音再生
+            playSound(name: "sound3")       //再生するタイミングで一瞬止まる。重い。
+            
+            //pointup用の物体と衝突した
+            print("PointUp")
+            point += 1
+            pointLabelNode.text = "Point:\(point)"      //ここも記述統一した方が良くない？
+                
+            //ベストスコア更新か確認する
+            var bestPoint = userDefaults.integer(forKey: "ITEM")
+            if point > bestPoint {
+                bestPoint = point
+                bestPointLabelNode.text = "Best Point:\(bestPoint)"
+                userDefaults.set(bestPoint, forKey: "ITEM")
+                userDefaults.synchronize()      //すぐに保存するためらしい
+            }
+            //アイテムを消す
+            itemNode.removeFromParent()
+            print("アイテム衝突確認")
+            
+       } else {
             //壁か地面と衝突
             print("GameOver")
             //スクロールを停止させる
@@ -310,6 +422,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         }
     }
     
+    //音声を再生する関数
+    func playSound(name: String) {
+        guard let soundFilePath = Bundle.main.path(forResource: name, ofType: "mp3") else {
+            print("音声ファイルが見つかりません")
+            return
+        }
+        let sound:URL = URL(fileURLWithPath: soundFilePath)
+        audioPlayer = try! AVAudioPlayer(contentsOf: sound, fileTypeHint: nil)
+        audioPlayer.play()
+
+    }
+    
     //リスタートの関数
     func restart() {
         score = 0
@@ -318,10 +442,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         bird.position = CGPoint(x: self.frame.size.width * 0.2, y: self.frame.size.height * 0.7)    //初期位置はsetupBirdと共通化した方がいいんじゃ？
         bird.physicsBody?.velocity = CGVector.zero
         bird.physicsBody?.collisionBitMask = groundCategory | wallCategory
-        bird.zPosition = 0.0
+        bird.zRotation = 0.0
         
         wallNode.removeAllChildren()
-        
+        itemNode.removeAllChildren()
+
         bird.speed = 1
         scrollNode.speed = 1
     }
@@ -332,7 +457,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         scoreLabelNode = SKLabelNode()
         scoreLabelNode.fontColor = UIColor.black
         scoreLabelNode.position = CGPoint(x:10, y: self.frame.size.height - 60)
-        scoreLabelNode.zPosition = 100      //zだけ別だし？一緒に指定できないの？
+        scoreLabelNode.zPosition = 100
         scoreLabelNode.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.left
         scoreLabelNode.text = "Score:\(score)"
         self.addChild(scoreLabelNode)
@@ -346,6 +471,27 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         let bestScore = userDefaults.integer(forKey: "BEST")    //ここでBESTを取り出してる？
         bestScoreLabelNode.text = "BEST Score:\(bestScore)"
         self.addChild(bestScoreLabelNode)
+        
+        //ポイント表示用
+        point = 0
+        pointLabelNode = SKLabelNode()
+        pointLabelNode.fontColor = UIColor.black
+        pointLabelNode.position = CGPoint(x:10, y: self.frame.size.height - 120)
+        pointLabelNode.zPosition = 100
+        pointLabelNode.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.left
+        pointLabelNode.text = "Point:\(point)"
+        self.addChild(pointLabelNode)
+        
+        bestPointLabelNode = SKLabelNode()
+        bestPointLabelNode.fontColor = UIColor.black
+        bestPointLabelNode.position = CGPoint(x: 10, y: self.frame.size.height - 150)
+        bestPointLabelNode.zPosition = 100
+        bestPointLabelNode.horizontalAlignmentMode = SKLabelHorizontalAlignmentMode.left
+        
+        let bestPoint = userDefaults.integer(forKey: "ITEM")
+        bestPointLabelNode.text = "BEST Point:\(bestPoint)"
+        self.addChild(bestPointLabelNode)
+
     }
 
 
