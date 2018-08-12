@@ -36,6 +36,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     var pointLabelNode:SKLabelNode!
     var bestPointLabelNode:SKLabelNode!
     
+    
     //SKView上にシーンが表示された時に呼ばれるメソッド
     override func didMove(to view: SKView) {
         
@@ -192,21 +193,16 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
             showItem.position = CGPoint(x: 0.0, y: under_item_y)
             
             //ここに物理演算を記述
-            //ポイントアップ用のノード
-            let pointNode = SKNode()
-            
             //物理演算を設定
-            pointNode.physicsBody = SKPhysicsBody(circleOfRadius: showItem.size.height / 2.0)
-            pointNode.position = showItem.position      //birdは指定しなくていいのに、なぜこっちは指定しないといけないの？
+            showItem.physicsBody = SKPhysicsBody(circleOfRadius: showItem.size.height / 2.0)
             //衝突した時に回転させないようにする
-            pointNode.physicsBody?.allowsRotation = false
-            pointNode.physicsBody?.isDynamic = false
-            pointNode.physicsBody?.categoryBitMask = self.pointCategory
-            pointNode.physicsBody?.contactTestBitMask = self.birdCategory
+            showItem.physicsBody?.allowsRotation = false
+            showItem.physicsBody?.isDynamic = false
+            showItem.physicsBody?.categoryBitMask = self.pointCategory
+            showItem.physicsBody?.contactTestBitMask = self.birdCategory
 
-            item.addChild(pointNode)
-            
             item.addChild(showItem)
+            
             item.run(itemAnimation)
             self.itemNode.addChild(item)
             //print("testtesttest")
@@ -388,7 +384,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         } else if (contact.bodyA.categoryBitMask & pointCategory) == pointCategory || (contact.bodyB.categoryBitMask & pointCategory) == pointCategory {
             
             //効果音再生
-            playSound(name: "sound1")       //再生するタイミングで一瞬止まる。重い。
+            playSound(name: "sound1")       //再生するタイミングで一瞬止まる。重い。＊＊＊
             
             //pointup用の物体と衝突した
             print("PointUp")
