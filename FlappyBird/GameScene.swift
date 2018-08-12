@@ -388,12 +388,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
         } else if (contact.bodyA.categoryBitMask & pointCategory) == pointCategory || (contact.bodyB.categoryBitMask & pointCategory) == pointCategory {
             
             //効果音再生
-            playSound(name: "sound3")       //再生するタイミングで一瞬止まる。重い。
+            playSound(name: "sound1")       //再生するタイミングで一瞬止まる。重い。
             
             //pointup用の物体と衝突した
             print("PointUp")
             point += 1
-            pointLabelNode.text = "Point:\(point)"      //ここも記述統一した方が良くない？
+            pointLabelNode.text = "Point:\(point)"
                 
             //ベストスコア更新か確認する
             var bestPoint = userDefaults.integer(forKey: "ITEM")
@@ -401,10 +401,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
                 bestPoint = point
                 bestPointLabelNode.text = "Best Point:\(bestPoint)"
                 userDefaults.set(bestPoint, forKey: "ITEM")
-                userDefaults.synchronize()      //すぐに保存するためらしい
+                userDefaults.synchronize()
             }
             //アイテムを消す
-            itemNode.removeFromParent()
+            contact.bodyB.node?.removeFromParent()
+            //itemNode.removeFromParent()
             print("アイテム衝突確認")
             
        } else {
@@ -438,7 +439,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {      //クラス＝画面�
     func restart() {
         score = 0
         scoreLabelNode.text = String("Score:\(score)")
-        
+        point = 0
+        pointLabelNode.text = String("Point:\(point)")
+
         bird.position = CGPoint(x: self.frame.size.width * 0.2, y: self.frame.size.height * 0.7)    //初期位置はsetupBirdと共通化した方がいいんじゃ？
         bird.physicsBody?.velocity = CGVector.zero
         bird.physicsBody?.collisionBitMask = groundCategory | wallCategory
